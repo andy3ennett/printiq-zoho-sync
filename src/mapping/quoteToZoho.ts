@@ -27,14 +27,28 @@ export function mapQuoteToDeal(quote: QuotePayload) {
   };
 }
 
-export function mapQuoteToQuoteRecord(quote: QuotePayload) {
+export function mapQuoteToQuoteRecord(
+  quote: QuotePayload,
+  productIds: { PIQ_CUSTOM_PRINT: string; PIQ_STOCK: string; PIQ_PRINTING: string; PIQ_FINISHING: string }
+) {
+  const total = quote.total ?? 0;
+
+  // Phase 0: we only have total for now. Later (Phase 1) we can use real breakdown.
+  const lines = [
+    {
+      product: { id: productIds.PIQ_CUSTOM_PRINT },
+      quantity: 1,
+      list_price: total
+    }
+  ];
+
   return {
     [ExternalIds.Quotes]: quote.quoteNo,
     Subject: `Quote ${quote.quoteNo}`,
-    Quote_Stage: quote.status, // TODO: confirm field API name if different
-    // In Zoho, Quotes link to Account/Contact/Deal usually via lookups (ids).
-    // Phase 0: keep minimal and rely on External IDs only.
+    Quote_Stage: quote.status,
     Grand_Total: quote.total,
-    Currency: quote.currency
+    Currency: quote.currency,
+    Product_Details: lines
   };
 }
+

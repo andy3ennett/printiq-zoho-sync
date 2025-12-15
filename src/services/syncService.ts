@@ -14,9 +14,14 @@ import {
 import { mapAcceptanceToDealUpdate, mapAcceptanceToSalesOrder } from "../mapping/acceptanceToZoho.js";
 import { mapProductToZoho } from "../mapping/productToZoho.js";
 import { mapInvoiceToAccount, mapInvoiceToInvoiceRecord } from "../mapping/invoiceToZoho.js";
+import { ServiceProductResolver } from "./serviceProducts.js";
 
 export class SyncService {
-  constructor(private readonly zoho: IZohoClient, private readonly logger: Logger) {}
+  private readonly serviceProducts: ServiceProductResolver;
+
+  constructor(private readonly zoho: IZohoClient, private readonly logger: Logger) {
+    this.serviceProducts = new ServiceProductResolver(this.zoho);
+  }
 
   async syncQuote(payload: QuotePayload) {
     // Minimal, Phase 0: upsert core entities by External ID only.
@@ -28,7 +33,8 @@ export class SyncService {
     }
 
     await this.zoho.upsert("Deals", ExternalIds.Deals, mapQuoteToDeal(payload));
-    await this.zoho.upsert("Quotes", ExternalIds.Quotes, mapQuoteToQuoteRecord(payload));
+    const productIds = await this.serviceProducts.getIds();
+    await this.zoho.upsert("Quotes", ExternalIds.Quotes, mapQuoteToQuoteRecord(payload, productIds));
 
     this.logger.info({ quoteNo: payload.quoteNo }, "Quote sync completed");
   }

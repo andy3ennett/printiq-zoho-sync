@@ -14,12 +14,13 @@ export type ZohoClientConfig = {
 
 export interface IZohoClient {
   upsert(moduleApiName: string, externalIdField: string, record: Record<string, any>): Promise<void>;
+  findProductIdByExternalId(externalIdField: string, value: string): Promise<string | null>;
 }
 
 export class ZohoClient implements IZohoClient {
   private token: TokenCache | null = null;
 
-  constructor(private readonly cfg: ZohoClientConfig, private readonly logger: Logger) { }
+  constructor(private readonly cfg: ZohoClientConfig, private readonly logger: Logger) {}
 
   private async getAccessToken(): Promise<string> {
     const now = Date.now();
@@ -44,6 +45,19 @@ export class ZohoClient implements IZohoClient {
 
     this.token = { accessToken, expiresAt: now + expiresIn * 1000 };
     return accessToken;
+  }
+
+  async findProductIdByExternalId(externalIdField: string, value: string): Promise<string | null> {
+    const token = await this.getAccessToken();
+    const criteria = `(${externalIdField}:equals:${value})`;
+    const url = `${this.cfg.apiBase}/Products/search?criteria=${encodeURIComponent(criteria)}`;
+
+    const resp = await http.get(url, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` }
+    });
+
+    const item = resp.data?.data?.[0];
+    return item?.id ?? null;
   }
 
   async upsert(moduleApiName: string, externalIdField: string, record: Record<string, any>): Promise<void> {
@@ -82,7 +96,12 @@ export class ZohoClient implements IZohoClient {
         },
         "Zoho upsert rejected"
       );
-      throw new Error(`Zoho upsert rejected: ${item.code ?? "unknown_code"} ${item.message ?? ""}`.trim());
+      const err = new Error(
+        `Zoho upsert rejected: ${item.code ?? "unknown_code"} ${item.message ?? ""}`.trim()
+      );
+      (err as any).zohoRejected = true;
+      (err as any).zohoCode = item.code;
+      throw err;
     }
 
     this.logger.info(

@@ -17,6 +17,10 @@ function isQuoteGated(status: string) {
 }
 
 function classifyZohoError(err: any): "4xx" | "retryable" {
+  // If our Zoho client parsed a per-record rejection from a 200 response,
+  // treat it as non-retryable (retrying won't help without data/layout changes).
+  if (err?.zohoRejected) return "4xx";
+
   const status = err?.response?.status as number | undefined;
   if (status && status >= 400 && status < 500) return "4xx";
   return "retryable"; // 5xx, network, timeout, unknown
