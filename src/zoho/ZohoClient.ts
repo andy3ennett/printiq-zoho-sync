@@ -19,7 +19,7 @@ export interface IZohoClient {
 export class ZohoClient implements IZohoClient {
   private token: TokenCache | null = null;
 
-  constructor(private readonly cfg: ZohoClientConfig, private readonly logger: Logger) {}
+  constructor(private readonly cfg: ZohoClientConfig, private readonly logger: Logger) { }
 
   private async getAccessToken(): Promise<string> {
     const now = Date.now();
@@ -50,7 +50,7 @@ export class ZohoClient implements IZohoClient {
     const token = await this.getAccessToken();
     const url = `${this.cfg.apiBase}/${moduleApiName}/upsert`;
 
-    await http.post(
+    const resp = await http.post(
       url,
       {
         data: [record],
@@ -59,12 +59,35 @@ export class ZohoClient implements IZohoClient {
       {
         headers: {
           Authorization: `Zoho-oauthtoken ${token}`
-          // Optional org header if needed later:
-          // ...(this.cfg.orgId ? { "X-CRM-ORG": this.cfg.orgId } : {})
         }
       }
     );
 
-    this.logger.info({ moduleApiName, externalIdField }, "Zoho upsert ok");
+    const item = resp.data?.data?.[0];
+    if (!item) {
+      this.logger.error({ moduleApiName, resp: resp.data }, "Zoho upsert: unexpected response");
+      throw new Error("Zoho upsert: unexpected response shape");
+    }
+
+    if (item.status !== "success") {
+      // Zoho returns structured error details here (e.g. MANDATORY_NOT_FOUND)
+      this.logger.error(
+        {
+          moduleApiName,
+          externalIdField,
+          code: item.code,
+          message: item.message,
+          details: item.details,
+          record
+        },
+        "Zoho upsert rejected"
+      );
+      throw new Error(`Zoho upsert rejected: ${item.code ?? "unknown_code"} ${item.message ?? ""}`.trim());
+    }
+
+    this.logger.info(
+      { moduleApiName, externalIdField, id: item.details?.id, action: item.details?.action },
+      "Zoho upsert ok"
+    );
   }
 }
