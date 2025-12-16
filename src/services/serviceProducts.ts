@@ -31,19 +31,12 @@ export class ServiceProductResolver {
     const cached = this.cache.get(code);
     if (cached) return cached;
 
-    // Ensure product exists (idempotent upsert)
-    await this.zoho.upsert("Products", ExternalIds.Products, {
+    // Ensure product exists and get its Zoho ID (avoid search/indexing delay)
+    const id = await this.zoho.upsertReturnId("Products", ExternalIds.Products, {
       [ExternalIds.Products]: code,
       Product_Name: name,
       Product_Active: true
     });
-
-    const id = await this.zoho.findProductIdByExternalId(ExternalIds.Products, code);
-    if (!id) {
-      throw Object.assign(new Error(`Service product not found after upsert: ${code}`), {
-        zohoRejected: true
-      });
-    }
 
     this.cache.set(code, id);
     return id;

@@ -8,6 +8,7 @@ import { InvoiceSchema } from "../schemas/invoice.js";
 import { deriveEventKey } from "../schemas/common.js";
 import type { DedupeStore } from "../dedupe/DedupeStore.js";
 import type { SyncService } from "../services/syncService.js";
+import { capturePayload } from "../utils/payloadCapture.js";
 
 function isQuoteGated(status: string) {
   // Non-negotiable: ignore “In Process”, only sync when “Awaiting Acceptance” or later.
@@ -35,10 +36,17 @@ export function webhooksRouter(deps: {
   const r = createRouter();
 
   r.post("/webhooks/printiq/quote", async (req, res) => {
+    void capturePayload("quote", req.body).catch((e) => deps.logger.warn({ err: e }, "Payload capture failed"));
+
     const parsed = QuoteSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid payload" });
 
     const payload = parsed.data;
+
+    deps.logger.info(
+      { eventType: "quote", quoteNo: payload.quoteNo, status: payload.status },
+      "Webhook received"
+    );
 
     if (isQuoteGated(payload.status)) {
       deps.logger.info({ quoteNo: payload.quoteNo, status: payload.status }, "Quote gated (ignored)");
@@ -67,10 +75,19 @@ export function webhooksRouter(deps: {
   });
 
   r.post("/webhooks/printiq/acceptance", async (req, res) => {
+    void capturePayload("acceptance", req.body).catch((e) =>
+      deps.logger.warn({ err: e }, "Payload capture failed")
+    );
+
     const parsed = AcceptanceSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid payload" });
 
     const payload = parsed.data;
+
+    deps.logger.info(
+      { eventType: "acceptance", quoteNo: payload.quoteNo, status: payload.status, jobReference: payload.jobReference },
+      "Webhook received"
+    );
 
     const key = deriveEventKey({
       eventId: payload.eventId,
@@ -94,10 +111,17 @@ export function webhooksRouter(deps: {
   });
 
   r.post("/webhooks/printiq/product", async (req, res) => {
+    void capturePayload("product", req.body).catch((e) => deps.logger.warn({ err: e }, "Payload capture failed"));
+
     const parsed = ProductSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid payload" });
 
     const payload = parsed.data;
+
+    deps.logger.info(
+      { eventType: "product", productCode: payload.productCode },
+      "Webhook received"
+    );
 
     const key = deriveEventKey({
       eventId: payload.eventId,
@@ -121,10 +145,17 @@ export function webhooksRouter(deps: {
   });
 
   r.post("/webhooks/printiq/invoice", async (req, res) => {
+    void capturePayload("invoice", req.body).catch((e) => deps.logger.warn({ err: e }, "Payload capture failed"));
+
     const parsed = InvoiceSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid payload" });
 
     const payload = parsed.data;
+
+    deps.logger.info(
+      { eventType: "invoice", invoiceNo: payload.invoiceNo, jobReference: payload.jobReference },
+      "Webhook received"
+    );
 
     const key = deriveEventKey({
       eventId: payload.eventId,

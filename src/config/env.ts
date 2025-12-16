@@ -15,6 +15,10 @@ const EnvSchema = z.object({
 
   ZOHO_ORG_ID: z.string().optional(),
 
+  PRINTIQ_BASE_URL: z.string().url().optional(),
+  PRINTIQ_API_NAME: z.string().min(1).optional(),
+  PRINTIQ_API_KEY: z.string().min(1).optional(),
+
   DEDUPE_TTL_MS: z.coerce.number().default(24 * 60 * 60 * 1000)
 });
 
@@ -27,4 +31,17 @@ export function loadEnv(): Env {
     throw new Error(`Invalid env: ${parsed.error.message}`);
   }
   return parsed.data;
+}
+
+export function assertZohoEnv(env: {
+  ZOHO_CLIENT_ID?: string;
+  ZOHO_CLIENT_SECRET?: string;
+  ZOHO_REFRESH_TOKEN?: string;
+  ZOHO_API_BASE: string;
+  ZOHO_ACCOUNTS_BASE: string;
+  ZOHO_ORG_ID?: string;
+}) {
+  if (!env.ZOHO_CLIENT_ID) throw new Error("Missing ZOHO_CLIENT_ID");
+  if (!env.ZOHO_CLIENT_SECRET) throw new Error("Missing ZOHO_CLIENT_SECRET");
+  if (!env.ZOHO_REFRESH_TOKEN) throw new Error("Missing ZOHO_REFRESH_TOKEN");
 }

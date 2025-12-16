@@ -7,12 +7,15 @@ import type { DedupeStore } from "./dedupe/DedupeStore.js";
 import type { SyncService } from "./services/syncService.js";
 import { requestId } from "./middleware/requestId.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { diagnosticsRouter } from "./routes/diagnostics.js";
+import type { PrintIQClient } from "./printiq/PrintIQClient.js";
 
 export function createApp(deps: {
   logger: Logger;
   dedupe: DedupeStore;
   dedupeTtlMs: number;
   sync: SyncService;
+  printiq?: PrintIQClient;
 }) {
   const app = express();
 
@@ -27,6 +30,7 @@ export function createApp(deps: {
   );
 
   app.use(healthRouter());
+  app.use(diagnosticsRouter({ logger: deps.logger, printiq: deps.printiq }));
   app.use(webhooksRouter(deps));
 
   app.use(errorHandler(deps.logger));

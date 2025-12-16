@@ -15,6 +15,13 @@ export type ZohoClientConfig = {
 export interface IZohoClient {
   upsert(moduleApiName: string, externalIdField: string, record: Record<string, any>): Promise<void>;
   findProductIdByExternalId(externalIdField: string, value: string): Promise<string | null>;
+
+  // NEW: for cases where we need the Zoho id (e.g., quote line items)
+  upsertReturnId(
+    moduleApiName: string,
+    externalIdField: string,
+    record: Record<string, any>
+  ): Promise<string>;
 }
 
 export class ZohoClient implements IZohoClient {
@@ -60,7 +67,7 @@ export class ZohoClient implements IZohoClient {
     return item?.id ?? null;
   }
 
-  async upsert(moduleApiName: string, externalIdField: string, record: Record<string, any>): Promise<void> {
+  private async doUpsert(moduleApiName: string, externalIdField: string, record: Record<string, any>) {
     const token = await this.getAccessToken();
     const url = `${this.cfg.apiBase}/${moduleApiName}/upsert`;
 
@@ -96,6 +103,7 @@ export class ZohoClient implements IZohoClient {
         },
         "Zoho upsert rejected"
       );
+
       const err = new Error(
         `Zoho upsert rejected: ${item.code ?? "unknown_code"} ${item.message ?? ""}`.trim()
       );
@@ -108,5 +116,26 @@ export class ZohoClient implements IZohoClient {
       { moduleApiName, externalIdField, id: item.details?.id, action: item.details?.action },
       "Zoho upsert ok"
     );
+
+    return item;
+  }
+
+  async upsert(moduleApiName: string, externalIdField: string, record: Record<string, any>): Promise<void> {
+    await this.doUpsert(moduleApiName, externalIdField, record);
+  }
+
+  async upsertReturnId(
+    moduleApiName: string,
+    externalIdField: string,
+    record: Record<string, any>
+  ): Promise<string> {
+    const item = await this.doUpsert(moduleApiName, externalIdField, record);
+    const id = item.details?.id as string | undefined;
+    if (!id) {
+      throw Object.assign(new Error(`Zoho upsert did not return an id for ${moduleApiName}`), {
+        zohoRejected: true
+      });
+    }
+    return id;
   }
 }
