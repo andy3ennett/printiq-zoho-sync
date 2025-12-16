@@ -23,8 +23,21 @@ export class PrintIQClient {
   }
 
   async getCustomerByCode(code: string): Promise<any> {
-    const url = this.url(`customerbycode/${encodeURIComponent(code)}`);
+  const url = this.url(`customerbycode/${encodeURIComponent(code)}`);
+
+  try {
     const resp = await http.get(url, { headers: this.headers() });
     return resp.data;
+  } catch (err: any) {
+    const status = err?.response?.status as number | undefined;
+
+    // PrintIQ sometimes rejects GET with 405 for these webhook service endpoints
+    if (status === 405) {
+      const resp = await http.post(url, null, { headers: this.headers() });
+      return resp.data;
+    }
+
+    throw err;
+    };
   }
 }

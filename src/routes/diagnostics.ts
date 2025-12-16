@@ -42,7 +42,11 @@ export function diagnosticsRouter(deps: {
       deps.logger.info({ customerCode: summary.customerCode }, "PrintIQ connectivity OK");
       return res.status(200).json(summary);
     } catch (err: any) {
-      deps.logger.error({ err, code: code.data }, "PrintIQ connectivity FAILED");
+      const status = err?.response?.status as number | undefined;
+      deps.logger.error(
+        { code: code.data, status, message: err?.message },
+        "PrintIQ connectivity FAILED"
+      );
       return res.status(502).json({ ok: false });
     }
   });
