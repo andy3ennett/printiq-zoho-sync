@@ -22,22 +22,70 @@ export class PrintIQClient {
     };
   }
 
-  async getCustomerByCode(code: string): Promise<any> {
-  const url = this.url(`customerbycode/${encodeURIComponent(code)}`);
+ async getCustomerByCode(code: string): Promise<any> {
+  const urlWithCode = this.url(`customerbycode/${encodeURIComponent(code)}`);
+  const urlNoCode = this.url(`customerbycode`);
 
-  try {
-    const resp = await http.get(url, { headers: this.headers() });
-    return resp.data;
-  } catch (err: any) {
-    const status = err?.response?.status as number | undefined;
+  const headersGet = this.headers();
+  const headersPost = { ...this.headers(), "Content-Type": "application/json" };
 
-    // PrintIQ sometimes rejects GET with 405 for these webhook service endpoints
-    if (status === 405) {
-      const resp = await http.post(url, null, { headers: this.headers() });
-      return resp.data;
+  const attempts: Array<{ name: string; run: () => Promise<any> }> = [
+    {
+      name: "GET /customerbycode/{code}",
+      run: async () => (await http.get(urlWithCode, { headers: headersGet })).data
+    },
+    {
+      name: "POST /customerbycode/{code} (no body)",
+      run: async () => (await http.post(urlWithCode, null, { headers: headersPost })).data
+    },
+    {
+      name: "POST /customerbycode { code }",
+      run: async () => (await http.post(urlNoCode, { code }, { headers: headersPost })).data
+    },
+    {
+      name: "POST /customerbycode { customerCode }",
+      run: async () =>
+        (await http.post(urlNoCode, { customerCode: code }, { headers: headersPost })).data
+    },
+    {
+      name: "POST /customerbycode { CustomerCode }",
+      run: async () =>
+        (await http.post(urlNoCode, { CustomerCode: code }, { headers: headersPost })).data
     }
+  ];
 
-    throw err;
-    };
+  let lastStatus: number | undefined;
+  let lastMessage = "";
+
+  for (const a of attempts) {
+    try {
+      return await a.run();
+    } catch (err: any) {
+      lastStatus = err?.response?.status as number | undefined;
+      lastMessage = err?.message ?? String(err);
+
+      // If it’s NOT a 405, bubble it up immediately (auth, 404, 500, etc.)
+      if (lastStatus && lastStatus !== 405) throw err;
+
+      // Otherwise, try next variant
+      this.logger?.warn?.({ attempt: a.name, status: lastStatus }, "PrintIQ diagnostic attempt failed");
+    }
+  }
+
+  // All attempts failed (likely endpoint/method differs in this tenant)
+  const e = new Error(
+    `PrintIQ customerbycode failed after attempts: ${attempts.map((a) => a.name).join(", ")}`
+  );
+  (e as any).status = lastStatus ?? 405;
+  (e as any).zohoRejected = true; // treat as non-retryable for diagnostics-style failures
+  throw e;
+ }
+  
+    async pingWsdl(): Promise<void> {
+    const base = this.cfg.baseUrl.replace(/\/+$/, "");
+    const url = `${base}/webservice/webhook.svc?wsdl`;
+
+    // We include the headers anyway (harmless) in case the instance expects them
+    await http.get(url, { headers: this.headers() });
   }
 }

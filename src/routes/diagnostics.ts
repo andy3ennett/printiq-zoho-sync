@@ -37,17 +37,20 @@ export function diagnosticsRouter(deps: {
     }
 
     try {
-      const data = await deps.printiq.getCustomerByCode(code.data);
-      const summary = safeCustomerSummary(data);
-      deps.logger.info({ customerCode: summary.customerCode }, "PrintIQ connectivity OK");
-      return res.status(200).json(summary);
+      await deps.printiq.pingWsdl();
+      deps.logger.info({ customerCode: code.data }, "PrintIQ connectivity OK");
+      return res.status(200).json({
+        ok: true,
+        customerCode: code.data,
+        service: "webservice/webhook.svc?wsdl"
+      });
     } catch (err: any) {
       const status = err?.response?.status as number | undefined;
       deps.logger.error(
         { code: code.data, status, message: err?.message },
         "PrintIQ connectivity FAILED"
       );
-      return res.status(502).json({ ok: false });
+      return res.status(502).json({ ok: false, status });
     }
   });
 
