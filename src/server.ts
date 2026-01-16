@@ -14,6 +14,17 @@ const dedupe = new InMemoryDedupeStore();
 // lightweight periodic cleanup for local dev
 setInterval(() => dedupe.cleanup(), 60_000).unref();
 
+const maskKeyLast4 = (k?: string) => (k && k.length >= 4 ? `****${k.slice(-4)}` : "unset");
+
+logger.info(
+  {
+    printiqBaseUrl: env.PRINTIQ_BASE_URL ?? "unset",
+    printiqApiName: env.PRINTIQ_API_NAME ?? "unset",
+    printiqApiKey: maskKeyLast4(env.PRINTIQ_API_KEY)
+  },
+  "PrintIQ env loaded"
+);
+
 const printiq =
   env.PRINTIQ_BASE_URL && env.PRINTIQ_API_NAME && env.PRINTIQ_API_KEY
     ? new PrintIQClient(

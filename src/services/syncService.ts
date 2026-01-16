@@ -6,15 +6,17 @@ import type { ProductPayload } from "../schemas/product.js";
 import type { InvoicePayload } from "../schemas/invoice.js";
 import { ExternalIds } from "../mapping/externalIds.js";
 import {
-  mapQuoteToAccount,
   mapQuoteToContact,
   mapQuoteToDeal,
   mapQuoteToQuoteRecord
 } from "../mapping/quoteToZoho.js";
+import { mapCustomerToAccountRecord } from "../mapping/customerToZoho.js";
 import { mapAcceptanceToDealUpdate, mapAcceptanceToSalesOrder } from "../mapping/acceptanceToZoho.js";
+
 import { mapProductToZoho } from "../mapping/productToZoho.js";
-import { mapInvoiceToAccount, mapInvoiceToInvoiceRecord } from "../mapping/invoiceToZoho.js";
 import { ServiceProductResolver } from "./serviceProducts.js";
+import { mapInvoiceToAccount, mapInvoiceToInvoiceRecord } from "../mapping/invoiceToZoho.js";
+
 
 export class SyncService {
   private readonly serviceProducts: ServiceProductResolver;
@@ -25,7 +27,14 @@ export class SyncService {
 
   async syncQuote(payload: QuotePayload) {
     // Minimal, Phase 0: upsert core entities by External ID only.
-    await this.zoho.upsert("Accounts", ExternalIds.Accounts, mapQuoteToAccount(payload));
+    await this.zoho.upsert(
+      "Accounts",
+      ExternalIds.Accounts,
+      mapCustomerToAccountRecord({
+        Code: payload.customerCode
+        // Id/Name can be added later if/when present in webhook payloads (Phase 0: no PrintIQ read/backfill here)
+      })
+    );
 
     const contact = mapQuoteToContact(payload);
     if (contact) {
@@ -60,4 +69,6 @@ export class SyncService {
     await this.zoho.upsert("Invoices", ExternalIds.Invoices, mapInvoiceToInvoiceRecord(payload));
     this.logger.info({ invoiceNo: payload.invoiceNo }, "Invoice sync completed");
   }
+
+  
 }

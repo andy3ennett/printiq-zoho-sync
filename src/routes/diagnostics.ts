@@ -7,14 +7,23 @@ import { PrintIQClient } from "../printiq/PrintIQClient.js";
 const CodeSchema = z.string().min(1);
 
 function safeCustomerSummary(data: any) {
-  // Keep this permissive: PrintIQ response shape may vary.
-  // Only return safe summary.
-  const customerCode =
-    data?.CustomerCode ?? data?.customerCode ?? data?.Code ?? data?.code ?? undefined;
-  const customerName =
-    data?.CustomerName ?? data?.customerName ?? data?.Name ?? data?.name ?? undefined;
+  // PII-safe summary only (no names, addresses, emails, phone, etc.)
+  const code = data?.Code ?? data?.code ?? data?.CustomerCode ?? data?.customerCode ?? undefined;
+  const id = data?.Id ?? data?.id ?? undefined;
 
-  return { customerCode, customerName };
+  const billingAddressIntegrationId =
+    data?.BillingAddressIntegrationID ??
+    data?.billingAddressIntegrationId ??
+    data?.BillingAddressIntegrationId ??
+    undefined;
+
+  const deliveryAddressIntegrationId =
+    data?.DeliveryAddressIntegrationID ??
+    data?.deliveryAddressIntegrationId ??
+    data?.DeliveryAddressIntegrationId ??
+    undefined;
+
+  return { code, id, billingAddressIntegrationId, deliveryAddressIntegrationId };
 }
 
 export function diagnosticsRouter(deps: {
@@ -37,18 +46,22 @@ export function diagnosticsRouter(deps: {
     }
 
     try {
-      await deps.printiq.pingWsdl();
-      deps.logger.info({ customerCode: code.data }, "PrintIQ connectivity OK");
-      return res.status(200).json({
-        ok: true,
-        customerCode: code.data,
-        service: "webservice/webhook.svc?wsdl"
-      });
+      const matches = await deps.printiq.getCustomerByCode(code.data);
+
+      if (!Array.isArray(matches) || matches.length === 0) {
+        deps.logger.info({ code: code.data }, "PrintIQ customer lookup OK (not found)");
+        return res.status(200).json({ ok: true, found: false, code: code.data });
+      }
+
+      const summary = safeCustomerSummary(matches[0]);
+
+      deps.logger.info({ code: summary.code ?? code.data }, "PrintIQ customer lookup OK");
+      return res.status(200).json({ ok: true, found: true, ...summary });
     } catch (err: any) {
       const status = err?.response?.status as number | undefined;
       deps.logger.error(
         { code: code.data, status, message: err?.message },
-        "PrintIQ connectivity FAILED"
+        "PrintIQ customer lookup FAILED"
       );
       return res.status(502).json({ ok: false, status });
     }

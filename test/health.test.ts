@@ -1,10 +1,12 @@
 import request from "supertest";
 import { describe, it, expect } from "vitest";
+import pino from "pino";
 import { createApp } from "../src/app.js";
 import { InMemoryDedupeStore } from "../src/dedupe/InMemoryDedupeStore.js";
 
+
 function mkApp() {
-  const logger = { info: () => {}, error: () => {} } as any;
+  const logger = pino({ level: "silent" });
   const dedupe = new InMemoryDedupeStore();
   const sync = {
     syncQuote: async () => {},

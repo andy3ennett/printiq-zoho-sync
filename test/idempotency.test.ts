@@ -1,11 +1,13 @@
 import request from "supertest";
 import { describe, it, expect, vi } from "vitest";
+import pino from "pino";
 import { createApp } from "../src/app.js";
 import { InMemoryDedupeStore } from "../src/dedupe/InMemoryDedupeStore.js";
 
+
 describe("Idempotency", () => {
   it("same payload twice only triggers one sync", async () => {
-    const logger = { info: vi.fn(), error: vi.fn() } as any;
+    const logger = pino({ level: "silent" });
     const dedupe = new InMemoryDedupeStore();
     const sync = { syncQuote: vi.fn(async () => {}) } as any;
 
